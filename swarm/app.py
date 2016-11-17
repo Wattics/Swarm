@@ -171,9 +171,19 @@ def send(url, unified_jsons, credentials):
             LOGGER.critical(exception)
     LOGGER.info('Completed')
 
+def print_usage_and_quit():
+    """Prints instructions."""
+    print('You need to specify the configuration file path as the only parameter.')
+    exit(-1)
+
 def main():
     """Main entry point."""
-    config_path = expanduser('config.ini')
+    if len(sys.argv) != 2:
+        print_usage_and_quit()
+
+    config_file_path = sys.argv[1]
+
+    config_path = expanduser(config_file_path)
     if not isfile(config_path):
         print('Config file not found')
         exit(-1)
