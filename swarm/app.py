@@ -141,6 +141,8 @@ def parse_electricity_csv(filename):
         csvreader = csv.reader(csvfile, delimiter=',')
         timeserie = []
         for row in csvreader:
+            if len(row) == 0:
+                continue
             timestamp, *values = row
             values = [safe_string_to_float(value) for value in values]
             LOGGER.debug(json.dumps(values))
