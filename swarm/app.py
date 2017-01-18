@@ -59,10 +59,11 @@ class TimeserieProcessor():
     This class processes timeseries and generates unified packets.
     """
 
-    def __init__(self, timeserie, fake_electric=False, minutes_shift=None):
+    def __init__(self, timeserie, fake_electric=False, minutes_shift=None, minutes_in_slot=None):
         self._timeserie = timeserie
         self._fake_electric = fake_electric
         self._minutes_shift = minutes_shift
+        self._minutes_in_slot = minutes_in_slot
 
     def build_unified_packets(self, reference):
         """Generate unified json packets out of the wrapped timeserie.
@@ -73,7 +74,7 @@ class TimeserieProcessor():
         if self._minutes_shift is not None:
             timeserie = self._prepend_padding_value(timeserie, self._minutes_shift)
         if self._fake_electric:
-            timeserie = self._electrify(timeserie)
+            timeserie = self._electrify(timeserie, self._minutes_in_slot)
         packets = self._build_unified_packets(timeserie, reference)
         return packets
 
@@ -87,12 +88,12 @@ class TimeserieProcessor():
         return shifted_timeserie
 
     @staticmethod
-    def _electrify(timeserie):
+    def _electrify(timeserie, minutes_in_slot):
         return [
             {
                 'tsISO8601': entry['tsISO8601'],
                 'pC_1': entry['value'],
-                'aP_1': entry['value'] * 6
+                'aP_1': entry['value'] * 60.0 / minutes_in_slot
             }
             for entry in timeserie
             ]
@@ -204,21 +205,35 @@ def main():
 
     credentials = (config['Web DC']['Username'], config['Web DC']['Password'])
 
+    channel_type = config['General']['ChannelType']
+    channel_reference = config['General']['ChannelReference']
+
+    if config['General']['MinutesInSlot'] is None:
+        minutes_in_slot = None
+    else:
+        minutes_in_slot = int(config['General']['MinutesInSlot'])
+
     if config['General']['MinutesShift'] is None:
         minutes_shift = None
     else:
         minutes_shift = int(config['General']['MinutesShift'])
 
-    if config['General']['ChannelType'] == 'real':
+    if channel_type == 'real_electricity':
         timeserie = parse_electricity_csv(config['General']['Filename'])
     else:
         timeserie = parse_single_value_csv(config['General']['Filename'])
+
+    if channel_type == 'fake_electricity' and minutes_in_slot is None:
+        print('Channels of type "fake_electricity" require the "MinutesInSlot"')
+        exit(-2)
+
     timeserie_processor = TimeserieProcessor(
         timeserie,
-        fake_electric=True if config['General']['ChannelType'] == 'fake' else False,
-        minutes_shift=minutes_shift
+        fake_electric=True if channel_type == 'fake_electricity' else False,
+        minutes_shift=minutes_shift,
+        minutes_in_slot=minutes_in_slot
     )
-    unified_jsons = timeserie_processor.build_unified_packets(config['General']['ChannelReference'])
+    unified_jsons = timeserie_processor.build_unified_packets(channel_reference)
     send(config['Web DC']['URL'], unified_jsons, credentials)
 
 
