@@ -42,6 +42,7 @@ ELECTRICITY_KEYS = [
 
 LOGGER = logging.getLogger(__name__)
 
+
 def initialize_logger(logger, level_name, logfile):
     """Initializes the provided logger."""
     level = logging.getLevelName(level_name)
@@ -51,11 +52,13 @@ def initialize_logger(logger, level_name, logfile):
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
+
 class TimeserieProcessor():
     """Class TimeserieProcessor
 
     This class processes timeseries and generates unified packets.
     """
+
     def __init__(self, timeserie, fake_electric=False, minutes_shift=None):
         self._timeserie = timeserie
         self._fake_electric = fake_electric
@@ -92,7 +95,7 @@ class TimeserieProcessor():
                 'aP_1': entry['value'] * 6
             }
             for entry in timeserie
-        ]
+            ]
 
     @staticmethod
     def _build_unified_packets(timeserie, reference):
@@ -105,6 +108,7 @@ class TimeserieProcessor():
             packets.append(packet)
         return packets
 
+
 def safe_string_to_float(value):
     """Tries to convert a value to a float number.
 
@@ -114,6 +118,7 @@ def safe_string_to_float(value):
         return float(value)
     except ValueError:
         return None
+
 
 def parse_single_value_csv(filename):
     """Parses a csv file with just timestamp and a single value."""
@@ -126,6 +131,7 @@ def parse_single_value_csv(filename):
             packet_datetime = datetime.datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S')
             timeserie.append({'tsISO8601': packet_datetime, 'value': safe_string_to_float(value)})
     return timeserie
+
 
 def parse_electricity_csv(filename):
     """Parses a csv file with timestamp and all the values for an electricity packet."""
@@ -143,6 +149,7 @@ def parse_electricity_csv(filename):
                 [packet_datetime, *values]
             )))
     return timeserie
+
 
 def send(url, unified_jsons, credentials):
     """Sends the the list of unified json packets to the Web Data Collector.
@@ -171,10 +178,12 @@ def send(url, unified_jsons, credentials):
             LOGGER.critical(exception)
     LOGGER.info('Completed')
 
+
 def print_usage_and_quit():
     """Prints instructions."""
     print('You need to specify the configuration file path as the only parameter.')
     exit(-1)
+
 
 def main():
     """Main entry point."""
@@ -212,12 +221,14 @@ def main():
     unified_jsons = timeserie_processor.build_unified_packets(config['General']['ChannelReference'])
     send(config['Web DC']['URL'], unified_jsons, credentials)
 
+
 if __name__ == '__main__':
     def abort_and_quit(*_):
         """Gracefully handles Ctrl+C interrupt and quits."""
         message = 'Aborted'
         LOGGER.info(message)
         sys.exit(0)
+
 
     signal.signal(signal.SIGINT, abort_and_quit)
     main()
