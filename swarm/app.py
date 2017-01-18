@@ -224,7 +224,7 @@ def main():
         timeserie = parse_single_value_csv(config['General']['Filename'])
 
     if channel_type == 'fake_electricity' and minutes_in_slot is None:
-        print('Channels of type "fake_electricity" require the "MinutesInSlot"')
+        print('Channels of type "fake_electricity" require the "MinutesInSlot" parameter')
         exit(-2)
 
     timeserie_processor = TimeserieProcessor(
