@@ -229,6 +229,10 @@ def main():
         print('Channels of type "fake_electricity" require the "MinutesInSlot" parameter')
         exit(-2)
 
+    if channel_type == 'real_electricity' and minutes_shift is not None:
+        print('Channels of type "real_electricity" are incompatible with the "MinutesShift" parameter')
+        exit(-3)
+
     timeserie_processor = TimeserieProcessor(
         timeserie,
         fake_electric=True if channel_type == 'fake_electricity' else False,
