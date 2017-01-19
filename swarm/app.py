@@ -80,7 +80,7 @@ class TimeserieProcessor():
 
     @staticmethod
     def _prepend_padding_value(timeserie, minutes):
-        padding_entry = {**timeserie[0], **{'value': timeserie[1]}}
+        padding_entry = {**timeserie[0], **{'value': timeserie[1]['value']}}
         shifted_timeserie = [padding_entry]
         for entry in timeserie:
             shifted_slot_time = entry['tsISO8601'] + datetime.timedelta(minutes=minutes)
