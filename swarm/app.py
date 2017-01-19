@@ -80,7 +80,7 @@ class TimeserieProcessor():
 
     @staticmethod
     def _prepend_padding_value(timeserie, minutes):
-        padding_entry = {**timeserie[0], **{'value': timeserie[1]}}
+        padding_entry = {**timeserie[0], **{'value': timeserie[1]['value']}}
         shifted_timeserie = [padding_entry]
         for entry in timeserie:
             shifted_slot_time = entry['tsISO8601'] + datetime.timedelta(minutes=minutes)
@@ -141,6 +141,8 @@ def parse_electricity_csv(filename):
         csvreader = csv.reader(csvfile, delimiter=',')
         timeserie = []
         for row in csvreader:
+            if len(row) == 0:
+                continue
             timestamp, *values = row
             values = [safe_string_to_float(value) for value in values]
             LOGGER.debug(json.dumps(values))
@@ -226,6 +228,10 @@ def main():
     if channel_type == 'fake_electricity' and minutes_in_slot is None:
         print('Channels of type "fake_electricity" require the "MinutesInSlot" parameter')
         exit(-2)
+
+    if channel_type == 'real_electricity' and minutes_shift is not None:
+        print('Channels of type "real_electricity" are incompatible with the "MinutesShift" parameter')
+        exit(-3)
 
     timeserie_processor = TimeserieProcessor(
         timeserie,
