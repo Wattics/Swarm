@@ -42,6 +42,7 @@ ELECTRICITY_KEYS = [
 
 LOGGER = logging.getLogger(__name__)
 
+
 def initialize_logger(logger, level_name, logfile):
     """Initializes the provided logger."""
     level = logging.getLevelName(level_name)
@@ -51,15 +52,18 @@ def initialize_logger(logger, level_name, logfile):
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
+
 class TimeserieProcessor():
     """Class TimeserieProcessor
 
     This class processes timeseries and generates unified packets.
     """
-    def __init__(self, timeserie, fake_electric=False, minutes_shift=None):
+
+    def __init__(self, timeserie, fake_electric=False, minutes_shift=None, minutes_in_slot=None):
         self._timeserie = timeserie
         self._fake_electric = fake_electric
         self._minutes_shift = minutes_shift
+        self._minutes_in_slot = minutes_in_slot
 
     def build_unified_packets(self, reference):
         """Generate unified json packets out of the wrapped timeserie.
@@ -70,13 +74,13 @@ class TimeserieProcessor():
         if self._minutes_shift is not None:
             timeserie = self._prepend_padding_value(timeserie, self._minutes_shift)
         if self._fake_electric:
-            timeserie = self._electrify(timeserie)
+            timeserie = self._electrify(timeserie, self._minutes_in_slot)
         packets = self._build_unified_packets(timeserie, reference)
         return packets
 
     @staticmethod
     def _prepend_padding_value(timeserie, minutes):
-        padding_entry = {**timeserie[0], **{'value': timeserie[1]}}
+        padding_entry = {**timeserie[0], **{'value': timeserie[1]['value']}}
         shifted_timeserie = [padding_entry]
         for entry in timeserie:
             shifted_slot_time = entry['tsISO8601'] + datetime.timedelta(minutes=minutes)
@@ -84,15 +88,15 @@ class TimeserieProcessor():
         return shifted_timeserie
 
     @staticmethod
-    def _electrify(timeserie):
+    def _electrify(timeserie, minutes_in_slot):
         return [
             {
                 'tsISO8601': entry['tsISO8601'],
                 'pC_1': entry['value'],
-                'aP_1': entry['value'] * 6
+                'aP_1': entry['value'] * 60.0 / minutes_in_slot
             }
             for entry in timeserie
-        ]
+            ]
 
     @staticmethod
     def _build_unified_packets(timeserie, reference):
@@ -105,6 +109,7 @@ class TimeserieProcessor():
             packets.append(packet)
         return packets
 
+
 def safe_string_to_float(value):
     """Tries to convert a value to a float number.
 
@@ -114,6 +119,7 @@ def safe_string_to_float(value):
         return float(value)
     except ValueError:
         return None
+
 
 def parse_single_value_csv(filename):
     """Parses a csv file with just timestamp and a single value."""
@@ -127,6 +133,7 @@ def parse_single_value_csv(filename):
             timeserie.append({'tsISO8601': packet_datetime, 'value': safe_string_to_float(value)})
     return timeserie
 
+
 def parse_electricity_csv(filename):
     """Parses a csv file with timestamp and all the values for an electricity packet."""
     expanded_filename = expanduser(filename)
@@ -134,6 +141,8 @@ def parse_electricity_csv(filename):
         csvreader = csv.reader(csvfile, delimiter=',')
         timeserie = []
         for row in csvreader:
+            if len(row) == 0:
+                continue
             timestamp, *values = row
             values = [safe_string_to_float(value) for value in values]
             LOGGER.debug(json.dumps(values))
@@ -143,6 +152,7 @@ def parse_electricity_csv(filename):
                 [packet_datetime, *values]
             )))
     return timeserie
+
 
 def send(url, unified_jsons, credentials):
     """Sends the the list of unified json packets to the Web Data Collector.
@@ -171,10 +181,12 @@ def send(url, unified_jsons, credentials):
             LOGGER.critical(exception)
     LOGGER.info('Completed')
 
+
 def print_usage_and_quit():
     """Prints instructions."""
     print('You need to specify the configuration file path as the only parameter.')
     exit(-1)
+
 
 def main():
     """Main entry point."""
@@ -195,22 +207,41 @@ def main():
 
     credentials = (config['Web DC']['Username'], config['Web DC']['Password'])
 
+    channel_type = config['General']['ChannelType']
+    channel_reference = config['General']['ChannelReference']
+
+    if config['General']['MinutesInSlot'] is None:
+        minutes_in_slot = None
+    else:
+        minutes_in_slot = int(config['General']['MinutesInSlot'])
+
     if config['General']['MinutesShift'] is None:
         minutes_shift = None
     else:
         minutes_shift = int(config['General']['MinutesShift'])
 
-    if config['General']['ChannelType'] == 'real':
+    if channel_type == 'real_electricity':
         timeserie = parse_electricity_csv(config['General']['Filename'])
     else:
         timeserie = parse_single_value_csv(config['General']['Filename'])
+
+    if channel_type == 'fake_electricity' and minutes_in_slot is None:
+        print('Channels of type "fake_electricity" require the "MinutesInSlot" parameter')
+        exit(-2)
+
+    if channel_type == 'real_electricity' and minutes_shift is not None:
+        print('Channels of type "real_electricity" are incompatible with the "MinutesShift" parameter')
+        exit(-3)
+
     timeserie_processor = TimeserieProcessor(
         timeserie,
-        fake_electric=True if config['General']['ChannelType'] == 'fake' else False,
-        minutes_shift=minutes_shift
+        fake_electric=True if channel_type == 'fake_electricity' else False,
+        minutes_shift=minutes_shift,
+        minutes_in_slot=minutes_in_slot
     )
-    unified_jsons = timeserie_processor.build_unified_packets(config['General']['ChannelReference'])
+    unified_jsons = timeserie_processor.build_unified_packets(channel_reference)
     send(config['Web DC']['URL'], unified_jsons, credentials)
+
 
 if __name__ == '__main__':
     def abort_and_quit(*_):
@@ -218,6 +249,7 @@ if __name__ == '__main__':
         message = 'Aborted'
         LOGGER.info(message)
         sys.exit(0)
+
 
     signal.signal(signal.SIGINT, abort_and_quit)
     main()
