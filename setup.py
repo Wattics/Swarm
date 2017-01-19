@@ -12,10 +12,10 @@ with codecs.open(path.join(HERE, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='swarm',
-    version='1.0.0',
+    version='1.1.0',
     description='A simple Python project to upload data to the Wattics API',
     long_description=LONG_DESCRIPTION,
-    url='',
+    url='https://github.com/Wattics/Swarm',
     author='Michele Delle Vergini',
     author_email='michele.dellevergini@wattics.com',
     license='BSD',
